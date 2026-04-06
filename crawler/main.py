@@ -1,9 +1,11 @@
-print("Crawler iniciado correctamente.")
+import time
+import sys
 
-# Este archivo es la base del servicio.
-# Más adelante se añadirá:
-# - Conexión a BSC
-# - Lectura de pares de PancakeSwap
-# - Guardado en PostgreSQL
-# - Sistema de scoring
-# - Ejecución automática por cron
+print("✅ Zombie Scanner Crawler iniciado correctamente.")
+sys.stdout.flush()
+
+# Loop infinito para mantener el servicio activo
+while True:
+    print("🕷️ Crawler ejecutándose...")
+    sys.stdout.flush()
+    time.sleep(60)
