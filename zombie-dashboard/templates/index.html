@@ -24,10 +24,9 @@
             <td>{{ t.token_address }}</td>
             <td>{{ t.liquidity }}</td>
             <td>{{ t.pair_address }}</td>
-            <td>{{ t.timestamp }}</td>
+            <td>{{ t.timestamp if t.timestamp is defined else "N/A" }}</td>
         </tr>
         {% endfor %}
     </table>
 </body>
 </html>
-
