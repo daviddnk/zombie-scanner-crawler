@@ -1,1 +1,1 @@
-worker: python crawler/main.py
+worker: python main.py
