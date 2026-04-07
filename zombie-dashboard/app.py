@@ -1,3 +1,5 @@
+print(">>> DASHBOARD VERSION 9.0 LOADED <<<")
+
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -28,4 +30,3 @@ async def get_tokens():
 async def index(request: Request):
     tokens = await get_tokens()
     return templates.TemplateResponse("index.html", {"request": request, "tokens": tokens})
-
