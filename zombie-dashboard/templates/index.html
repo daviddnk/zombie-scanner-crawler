@@ -1,1 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zombie Scanner Dashboard</title>
+    <style>
+        body { font-family: Arial; background: #111; color: #eee; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #333; }
+        th { background: #222; }
+        tr:hover { background: #333; }
+    </style>
+</head>
+<body>
+    <h1>Zombie Scanner Dashboard</h1>
+    <table>
+        <tr>
+            <th>Token</th>
+            <th>Liquidity</th>
+            <th>Pair</th>
+            <th>Timestamp</th>
+        </tr>
+        {% for t in tokens %}
+        <tr>
+            <td>{{ t.token_address }}</td>
+            <td>{{ t.liquidity }}</td>
+            <td>{{ t.pair_address }}</td>
+            <td>{{ t.timestamp }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
 
