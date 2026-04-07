@@ -3,4 +3,3 @@ uvicorn
 asyncpg
 jinja2
 python-multipart
-
