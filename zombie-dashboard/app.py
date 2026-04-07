@@ -28,3 +28,4 @@ async def get_tokens():
 async def index(request: Request):
     tokens = await get_tokens()
     return templates.TemplateResponse("index.html", {"request": request, "tokens": tokens})
+
