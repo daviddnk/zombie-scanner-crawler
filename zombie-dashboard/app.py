@@ -11,7 +11,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def get_tokens():
     conn = await asyncpg.connect(DATABASE_URL)
-    rows = await conn.fetch("SELECT * FROM abandoned_tokens ORDER BY timestamp DESC")
+    rows = await conn.fetch("SELECT * FROM abandoned_tokens")
     await conn.close()
     return rows
 
