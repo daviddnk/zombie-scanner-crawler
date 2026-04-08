@@ -1,3 +1,11 @@
+# Web3 / BSC
 web3>=6.11.0
 requests>=2.31.0
-psycopg2-binary==2.9.9
+
+# Database
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+
+# Dashboard API
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0

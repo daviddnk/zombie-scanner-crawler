@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zombie Scanner Dashboard</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0d0d0d;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #f0f0f0;
+      letter-spacing: -0.5px;
+    }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: #1a3a1a;
+      color: #4caf50;
+      border: 1px solid #2e6b2e;
+      border-radius: 999px;
+      padding: 2px 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Stats bar ────────────────────────────────────────────────── */
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 14px 20px;
+      min-width: 160px;
+      flex: 1;
+    }
+    .stat-card .label {
+      font-size: 0.72rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+    .stat-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f0f0f0;
+    }
+    .stat-card .value.green { color: #4caf50; }
+    .stat-card .value.yellow { color: #ffc107; }
+
+    /* ── Controls ─────────────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .refresh-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #666;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+    .last-update {
+      font-size: 0.8rem;
+      color: #555;
+      margin-left: auto;
+    }
+
+    /* ── Table wrapper ────────────────────────────────────────────── */
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid #222;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    thead tr {
+      background: #161616;
+    }
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      border-bottom: 1px solid #222;
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid #1a1a1a;
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #181818; }
+    td {
+      padding: 11px 16px;
+      vertical-align: middle;
+      color: #ccc;
+    }
+
+    /* ── Cell styles ──────────────────────────────────────────────── */
+    .addr {
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      color: #7eb8f7;
+    }
+    .addr a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .addr a:hover { text-decoration: underline; }
+
+    .liquidity {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .liquidity.low    { color: #f44336; }
+    .liquidity.medium { color: #ffc107; }
+    .liquidity.ok     { color: #4caf50; }
+
+    .ts {
+      font-size: 0.78rem;
+      color: #666;
+      white-space: nowrap;
+    }
+
+    /* ── Empty / error states ─────────────────────────────────────── */
+    .empty-row td {
+      text-align: center;
+      padding: 40px;
+      color: #444;
+      font-size: 0.9rem;
+    }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      header h1 { font-size: 1.2rem; }
+      .stat-card { min-width: 120px; }
+      td, th { padding: 9px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🧟 Zombie Scanner</h1>
+    <span class="badge">Live</span>
+  </header>
+
+  <!-- Stats bar -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">Total Tokens</div>
+      <div class="value green" id="stat-count">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Avg Liquidity (USD)</div>
+      <div class="value yellow" id="stat-avg-liq">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Lowest Liquidity</div>
+      <div class="value" id="stat-min-liq">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Last Detected</div>
+      <div class="value" id="stat-last" style="font-size:1rem;padding-top:4px;">—</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="refresh-indicator">
+      <div class="dot"></div>
+      Auto-refresh every 5 s
+    </div>
+    <span class="last-update" id="last-update">Fetching…</span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Pair Address</th>
+          <th>Token 0</th>
+          <th>Token 1</th>
+          <th>Liquidity (USD)</th>
+          <th>Detected At</th>
+        </tr>
+      </thead>
+      <tbody id="token-table-body">
+        <tr class="empty-row"><td colspan="6">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // ── Helpers ──────────────────────────────────────────────────────
+    const BSC_SCAN = 'https://bscscan.com/address/';
+
+    function shortAddr(addr) {
+      if (!addr) return '—';
+      return addr.slice(0, 6) + '…' + addr.slice(-4);
+    }
+
+    function addrLink(addr) {
+      if (!addr) return '<span style="color:#444">—</span>';
+      return `<a class="addr" href="${BSC_SCAN}${addr}" target="_blank" rel="noopener"
+                title="${addr}">${shortAddr(addr)}</a>`;
+    }
+
+    function fmtLiquidity(val) {
+      if (val === null || val === undefined) return '<span style="color:#444">—</span>';
+      const n = parseFloat(val);
+      let cls = n < 100 ? 'low' : n < 1000 ? 'medium' : 'ok';
+      return `<span class="liquidity ${cls}">$${n.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })}</span>`;
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleString('en-US', {
+        month: 'short', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      });
+    }
+
+    function fmtNow() {
+      return new Date().toLocaleTimeString('en-US', { hour12: false });
+    }
+
+    // ── Fetch & render ───────────────────────────────────────────────
+    async function fetchTokens() {
+      try {
+        const res = await fetch('/tokens');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (err) {
+        console.error('Failed to fetch tokens:', err);
+        return null;
+      }
+    }
+
+    function renderStats(tokens) {
+      document.getElementById('stat-count').textContent = tokens.length;
+
+      const liquidities = tokens
+        .map(t => parseFloat(t.liquidity_usd))
+        .filter(n => !isNaN(n));
+
+      if (liquidities.length) {
+        const avg = liquidities.reduce((a, b) => a + b, 0) / liquidities.length;
+        const min = Math.min(...liquidities);
+        document.getElementById('stat-avg-liq').textContent =
+          '$' + avg.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        document.getElementById('stat-min-liq').textContent =
+          '$' + min.toLocaleString('en-US', { maximumFractionDigits: 2 });
+      } else {
+        document.getElementById('stat-avg-liq').textContent = '—';
+        document.getElementById('stat-min-liq').textContent = '—';
+      }
+
+      if (tokens.length > 0 && tokens[0].detected_at) {
+        document.getElementById('stat-last').textContent = fmtDate(tokens[0].detected_at);
+      } else {
+        document.getElementById('stat-last').textContent = '—';
+      }
+    }
+
+    function renderTable(tokens) {
+      const tbody = document.getElementById('token-table-body');
+
+      if (!tokens || tokens.length === 0) {
+        tbody.innerHTML =
+          '<tr class="empty-row"><td colspan="6">No abandoned tokens found yet. Scanner is running…</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = tokens.map((t, i) => `
+        <tr>
+          <td style="color:#555;font-size:0.78rem">${i + 1}</td>
+          <td>${addrLink(t.pair_address)}</td>
+          <td>${addrLink(t.token0)}</td>
+          <td>${addrLink(t.token1)}</td>
+          <td>${fmtLiquidity(t.liquidity_usd)}</td>
+          <td class="ts">${fmtDate(t.detected_at)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function refresh() {
+      const tokens = await fetchTokens();
+
+      if (tokens === null) {
+        document.getElementById('last-update').textContent =
+          `⚠ Fetch failed at ${fmtNow()}`;
+        return;
+      }
+
+      renderStats(tokens);
+      renderTable(tokens);
+      document.getElementById('last-update').textContent =
+        `Updated at ${fmtNow()}`;
+    }
+
+    // ── Boot ─────────────────────────────────────────────────────────
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

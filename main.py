@@ -1,9 +1,9 @@
-import os
-import time
+import asyncio
 import logging
-import psycopg2
-from psycopg2 import OperationalError
-from datetime import datetime
+import os
+from datetime import datetime, timezone
+
+import asyncpg
 
 from crawler.scanner import PancakeSwapScanner
 
@@ -23,32 +23,38 @@ log = logging.getLogger(__name__)
 DATABASE_URL = os.environ.get("DATABASE_URL")
 SCAN_INTERVAL = 30  # seconds between scans
 
+# asyncpg requires the postgresql:// scheme (not postgres://)
+def _normalize_dsn(url: str) -> str:
+    if url and url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
 
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
-def connect_db(retries: int = 10, delay: int = 5) -> psycopg2.extensions.connection:
+async def connect_db(retries: int = 10, delay: int = 5) -> asyncpg.Connection:
     """Connect to PostgreSQL with retries."""
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL environment variable is not set")
 
+    dsn = _normalize_dsn(DATABASE_URL)
     for attempt in range(1, retries + 1):
         try:
-            conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
-            conn.autocommit = False
+            conn = await asyncpg.connect(dsn, timeout=10)
             log.info("Connected to PostgreSQL (attempt %d)", attempt)
             return conn
-        except OperationalError as exc:
+        except Exception as exc:
             log.warning(
                 "DB connection failed (attempt %d/%d): %s", attempt, retries, exc
             )
             if attempt < retries:
-                time.sleep(delay)
+                await asyncio.sleep(delay)
 
     raise RuntimeError(f"Could not connect to PostgreSQL after {retries} attempts")
 
 
-def create_table(conn: psycopg2.extensions.connection) -> None:
+async def create_table(conn: asyncpg.Connection) -> None:
     """Create abandoned_tokens table if it does not exist."""
     ddl = """
         CREATE TABLE IF NOT EXISTS abandoned_tokens (
@@ -61,13 +67,11 @@ def create_table(conn: psycopg2.extensions.connection) -> None:
             UNIQUE (pair_address, detected_at)
         );
     """
-    with conn.cursor() as cur:
-        cur.execute(ddl)
-    conn.commit()
+    await conn.execute(ddl)
     log.info("Table abandoned_tokens is ready")
 
 
-def save_tokens(conn: psycopg2.extensions.connection, tokens: list) -> int:
+async def save_tokens(conn: asyncpg.Connection, tokens: list) -> int:
     """Persist a list of abandoned-token dicts. Returns number of rows inserted."""
     if not tokens:
         return 0
@@ -75,23 +79,23 @@ def save_tokens(conn: psycopg2.extensions.connection, tokens: list) -> int:
     insert = """
         INSERT INTO abandoned_tokens
             (pair_address, token0, token1, liquidity_usd, detected_at)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT DO NOTHING;
     """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     rows = [
         (
             t["pair"],
             t.get("token0"),
             t.get("token1"),
             t.get("liquidity_usd"),
-            t.get("timestamp", datetime.utcnow()),
+            t.get("timestamp", now),
         )
         for t in tokens
     ]
 
-    with conn.cursor() as cur:
-        cur.executemany(insert, rows)
-    conn.commit()
+    await conn.executemany(insert, rows)
+    log.info("Saved %d token rows to database", len(rows))
     return len(rows)
 
 
@@ -100,25 +104,30 @@ def save_tokens(conn: psycopg2.extensions.connection, tokens: list) -> int:
 # ---------------------------------------------------------------------------
 class ZombieScannerWorker:
     def __init__(self):
-        self.conn = None
+        self.conn: asyncpg.Connection | None = None
         self.scanner = PancakeSwapScanner()
 
-    def _ensure_connection(self):
-        """Re-connect if the DB connection was lost."""
-        try:
-            if self.conn and not self.conn.closed:
-                self.conn.cursor().execute("SELECT 1")
-                return
-        except Exception:
-            pass
+    async def _ensure_connection(self) -> None:
+        """Re-connect if the DB connection was lost or never opened."""
+        if self.conn is not None:
+            try:
+                await self.conn.fetchval("SELECT 1")
+                return  # connection is alive
+            except Exception:
+                log.warning("DB connection lost – reconnecting...")
+                try:
+                    await self.conn.close()
+                except Exception:
+                    pass
+                self.conn = None
 
         log.info("(Re)connecting to database...")
-        self.conn = connect_db()
-        create_table(self.conn)
+        self.conn = await connect_db()
+        await create_table(self.conn)
 
-    def run(self):
+    async def run(self) -> None:
         log.info("=== Zombie Scanner Worker starting ===")
-        self._ensure_connection()
+        await self._ensure_connection()
 
         cycle = 0
         while True:
@@ -126,13 +135,17 @@ class ZombieScannerWorker:
             log.info("--- Scan cycle #%d ---", cycle)
 
             try:
-                self._ensure_connection()
+                await self._ensure_connection()
 
-                abandoned = self.scanner.scan_latest_pairs()
+                # scanner is synchronous (Web3 + requests); run in thread pool
+                loop = asyncio.get_running_loop()
+                abandoned = await loop.run_in_executor(
+                    None, self.scanner.scan_latest_pairs
+                )
                 log.info("Abandoned tokens found this cycle: %d", len(abandoned))
 
                 if abandoned:
-                    saved = save_tokens(self.conn, abandoned)
+                    saved = await save_tokens(self.conn, abandoned)
                     log.info("Rows inserted into DB: %d", saved)
                 else:
                     log.info("No abandoned tokens detected this cycle")
@@ -141,19 +154,14 @@ class ZombieScannerWorker:
                 log.error(
                     "Error during scan cycle #%d: %s", cycle, exc, exc_info=True
                 )
-                # Roll back any open transaction so the connection stays usable
-                try:
-                    if self.conn and not self.conn.closed:
-                        self.conn.rollback()
-                except Exception:
-                    pass
 
             log.info("Sleeping %d seconds until next cycle...", SCAN_INTERVAL)
-            time.sleep(SCAN_INTERVAL)
+            await asyncio.sleep(SCAN_INTERVAL)
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    ZombieScannerWorker().run()
+    asyncio.run(ZombieScannerWorker().run())
+
