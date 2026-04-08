@@ -9,3 +9,9 @@ psycopg2-binary>=2.9.9
 # Dashboard API
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
+
+# Liquidity updater – async HTTP
+aiohttp>=3.9.0
+
+# Data analysis
+pandas>=2.2.0

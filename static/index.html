@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zombie Scanner Dashboard</title>
+  <!-- Chart.js for liquidity trend charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
     /* ── Reset & base ─────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,7 +15,7 @@
       background: #0d0d0d;
       color: #e0e0e0;
       min-height: 100vh;
-      padding: 24px 16px 48px;
+      padding: 24px 16px 64px;
     }
 
     /* ── Header ───────────────────────────────────────────────────── */
@@ -41,19 +43,30 @@
       letter-spacing: 0.5px;
     }
 
+    /* ── Section headings ─────────────────────────────────────────── */
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+      margin-top: 32px;
+    }
+
     /* ── Stats bar ────────────────────────────────────────────────── */
     .stats {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      margin-bottom: 24px;
+      margin-bottom: 8px;
     }
     .stat-card {
       background: #161616;
       border: 1px solid #2a2a2a;
       border-radius: 10px;
       padding: 14px 20px;
-      min-width: 160px;
+      min-width: 150px;
       flex: 1;
     }
     .stat-card .label {
@@ -64,12 +77,49 @@
       margin-bottom: 6px;
     }
     .stat-card .value {
-      font-size: 1.5rem;
+      font-size: 1.45rem;
       font-weight: 700;
       color: #f0f0f0;
     }
-    .stat-card .value.green { color: #4caf50; }
+    .stat-card .value.green  { color: #4caf50; }
     .stat-card .value.yellow { color: #ffc107; }
+    .stat-card .value.red    { color: #f44336; }
+    .stat-card .value.blue   { color: #7eb8f7; }
+
+    /* ── Trend badge ──────────────────────────────────────────────── */
+    .trend-up   { color: #4caf50; font-size: 0.8rem; }
+    .trend-down { color: #f44336; font-size: 0.8rem; }
+    .trend-flat { color: #888;    font-size: 0.8rem; }
+
+    /* ── Tab nav ──────────────────────────────────────────────────── */
+    .tab-nav {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #222;
+      padding-bottom: 0;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: #ccc; }
+    .tab-btn.active {
+      color: #f0f0f0;
+      border-bottom-color: #4caf50;
+    }
+
+    /* ── Tab panels ───────────────────────────────────────────────── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
 
     /* ── Controls ─────────────────────────────────────────────────── */
     .controls {
@@ -114,9 +164,7 @@
       border-collapse: collapse;
       font-size: 0.85rem;
     }
-    thead tr {
-      background: #161616;
-    }
+    thead tr { background: #161616; }
     th {
       padding: 12px 16px;
       text-align: left;
@@ -146,10 +194,7 @@
       font-size: 0.78rem;
       color: #7eb8f7;
     }
-    .addr a {
-      color: inherit;
-      text-decoration: none;
-    }
+    .addr a { color: inherit; text-decoration: none; }
     .addr a:hover { text-decoration: underline; }
 
     .liquidity {
@@ -166,6 +211,60 @@
       white-space: nowrap;
     }
 
+    /* ── Chart section ────────────────────────────────────────────── */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+    .chart-card {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 16px 20px 20px;
+    }
+    .chart-card .chart-title {
+      font-size: 0.78rem;
+      color: #888;
+      margin-bottom: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    .chart-card .chart-subtitle {
+      font-size: 0.7rem;
+      color: #555;
+      margin-bottom: 14px;
+    }
+    .chart-card canvas {
+      max-height: 180px;
+    }
+
+    /* ── Liquidity history table ──────────────────────────────────── */
+    .pair-selector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .pair-selector label {
+      font-size: 0.8rem;
+      color: #888;
+    }
+    .pair-selector select {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #e0e0e0;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      flex: 1;
+      max-width: 420px;
+    }
+    .pair-selector select:focus { outline: none; border-color: #4caf50; }
+
     /* ── Empty / error states ─────────────────────────────────────── */
     .empty-row td {
       text-align: center;
@@ -179,6 +278,7 @@
       header h1 { font-size: 1.2rem; }
       .stat-card { min-width: 120px; }
       td, th { padding: 9px 10px; }
+      .chart-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -189,57 +289,184 @@
     <span class="badge">Live</span>
   </header>
 
-  <!-- Stats bar -->
+  <!-- ── Global stats bar ──────────────────────────────────────────── -->
   <div class="stats">
     <div class="stat-card">
       <div class="label">Total Tokens</div>
       <div class="value green" id="stat-count">—</div>
     </div>
     <div class="stat-card">
-      <div class="label">Avg Liquidity (USD)</div>
+      <div class="label">Avg Liquidity</div>
       <div class="value yellow" id="stat-avg-liq">—</div>
     </div>
     <div class="stat-card">
-      <div class="label">Lowest Liquidity</div>
-      <div class="value" id="stat-min-liq">—</div>
+      <div class="label">Max Liquidity</div>
+      <div class="value blue" id="stat-max-liq">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Min Liquidity</div>
+      <div class="value red" id="stat-min-liq">—</div>
     </div>
     <div class="stat-card">
       <div class="label">Last Detected</div>
-      <div class="value" id="stat-last" style="font-size:1rem;padding-top:4px;">—</div>
+      <div class="value" id="stat-last" style="font-size:0.95rem;padding-top:4px;">—</div>
     </div>
   </div>
 
-  <!-- Controls -->
-  <div class="controls">
+  <!-- ── Controls ──────────────────────────────────────────────────── -->
+  <div class="controls" style="margin-top:20px;">
     <div class="refresh-indicator">
       <div class="dot"></div>
-      Auto-refresh every 5 s
+      Auto-refresh every 30 s
     </div>
     <span class="last-update" id="last-update">Fetching…</span>
   </div>
 
-  <!-- Table -->
-  <div class="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Pair Address</th>
-          <th>Token 0</th>
-          <th>Token 1</th>
-          <th>Liquidity (USD)</th>
-          <th>Detected At</th>
-        </tr>
-      </thead>
-      <tbody id="token-table-body">
-        <tr class="empty-row"><td colspan="6">Loading…</td></tr>
-      </tbody>
-    </table>
+  <!-- ── Tab navigation ────────────────────────────────────────────── -->
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="tab-tokens">Tokens</button>
+    <button class="tab-btn" data-tab="tab-liquidity">Liquidity</button>
+    <button class="tab-btn" data-tab="tab-charts">Charts</button>
+    <button class="tab-btn" data-tab="tab-history">History</button>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 1 – Tokens
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-tokens">
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Pair Address</th>
+            <th>Token 0</th>
+            <th>Token 1</th>
+            <th>Liquidity (USD)</th>
+            <th>Detected At</th>
+          </tr>
+        </thead>
+        <tbody id="token-table-body">
+          <tr class="empty-row"><td colspan="6">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 2 – Liquidity (current snapshot per pair)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-liquidity">
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Pair Address</th>
+            <th>Token 0</th>
+            <th>Token 1</th>
+            <th>Current Liquidity</th>
+            <th>Last Updated</th>
+            <th>Detected At</th>
+          </tr>
+        </thead>
+        <tbody id="liquidity-table-body">
+          <tr class="empty-row"><td colspan="7">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 3 – Charts (trend per pair)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-charts">
+    <p style="font-size:0.82rem;color:#555;margin-bottom:16px;">
+      Each card shows the liquidity trend for one pair over the last 24 h (up to 288 data points at 5-min intervals).
+    </p>
+    <div class="chart-grid" id="chart-grid">
+      <p style="color:#444;padding:40px 0;">Loading charts…</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 4 – History (per-pair detail)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-history">
+    <div class="pair-selector">
+      <label for="pair-select">Select pair:</label>
+      <select id="pair-select">
+        <option value="">— choose a pair —</option>
+      </select>
+    </div>
+
+    <!-- Per-pair stats -->
+    <div class="stats" id="pair-stats" style="display:none;margin-bottom:20px;">
+      <div class="stat-card">
+        <div class="label">Min Liquidity</div>
+        <div class="value red" id="ps-min">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Max Liquidity</div>
+        <div class="value blue" id="ps-max">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Avg Liquidity</div>
+        <div class="value yellow" id="ps-avg">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Trend</div>
+        <div class="value" id="ps-trend">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Data Points</div>
+        <div class="value" id="ps-count">—</div>
+      </div>
+    </div>
+
+    <!-- Per-pair chart -->
+    <div class="chart-card" id="pair-chart-card" style="display:none;margin-bottom:20px;">
+      <div class="chart-title" id="pair-chart-title">—</div>
+      <div class="chart-subtitle">Liquidity over time</div>
+      <canvas id="pair-chart"></canvas>
+    </div>
+
+    <!-- Per-pair history table -->
+    <div class="table-wrapper" id="history-table-wrapper" style="display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Pair Address</th>
+            <th>Liquidity (USD)</th>
+            <th>Recorded At</th>
+          </tr>
+        </thead>
+        <tbody id="history-table-body">
+          <tr class="empty-row"><td colspan="4">Select a pair above.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p id="history-empty" style="color:#444;padding:40px 0;font-size:0.9rem;">
+      Select a pair above to view its liquidity history.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       JavaScript
+  ══════════════════════════════════════════════════════════════════ -->
   <script>
-    // ── Helpers ──────────────────────────────────────────────────────
+    'use strict';
+
+    // ── Constants ────────────────────────────────────────────────────
     const BSC_SCAN = 'https://bscscan.com/address/';
+    const REFRESH_MS = 30_000;   // 30 s auto-refresh
+
+    // Chart.js instances keyed by pair address
+    const chartInstances = {};
+    let pairChartInstance = null;
+
+    // ── Utility helpers ──────────────────────────────────────────────
 
     function shortAddr(addr) {
       if (!addr) return '—';
@@ -252,20 +479,26 @@
                 title="${addr}">${shortAddr(addr)}</a>`;
     }
 
-    function fmtLiquidity(val) {
+    function fmtUsd(val) {
       if (val === null || val === undefined) return '<span style="color:#444">—</span>';
       const n = parseFloat(val);
-      let cls = n < 100 ? 'low' : n < 1000 ? 'medium' : 'ok';
-      return `<span class="liquidity ${cls}">$${n.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+      const cls = n < 100 ? 'low' : n < 1000 ? 'medium' : 'ok';
+      return `<span class="liquidity ${cls}">${n.toLocaleString('en-US', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
       })}</span>`;
     }
 
+    function fmtUsdPlain(val) {
+      if (val === null || val === undefined || isNaN(parseFloat(val))) return '—';
+      return '$' + parseFloat(val).toLocaleString('en-US', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      });
+    }
+
+
     function fmtDate(iso) {
       if (!iso) return '—';
-      const d = new Date(iso);
-      return d.toLocaleString('en-US', {
+      return new Date(iso).toLocaleString('en-US', {
         month: 'short', day: '2-digit',
         hour: '2-digit', minute: '2-digit', second: '2-digit',
         hour12: false
@@ -276,83 +509,337 @@
       return new Date().toLocaleTimeString('en-US', { hour12: false });
     }
 
-    // ── Fetch & render ───────────────────────────────────────────────
-    async function fetchTokens() {
-      try {
-        const res = await fetch('/tokens');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.json();
-      } catch (err) {
-        console.error('Failed to fetch tokens:', err);
-        return null;
-      }
+    function trendBadge(pct) {
+      if (pct === null || pct === undefined || isNaN(pct)) return '<span class="trend-flat">— flat</span>';
+      if (pct > 0.5)  return `<span class="trend-up">▲ +${pct.toFixed(2)}%</span>`;
+      if (pct < -0.5) return `<span class="trend-down">▼ ${pct.toFixed(2)}%</span>`;
+      return `<span class="trend-flat">→ ${pct.toFixed(2)}%</span>`;
     }
 
-    function renderStats(tokens) {
-      document.getElementById('stat-count').textContent = tokens.length;
+    // ── API helpers ──────────────────────────────────────────────────
 
+    async function apiFetch(path) {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`HTTP ${res.status} from ${path}`);
+      return res.json();
+    }
+
+    // ── Global stats ─────────────────────────────────────────────────
+
+    function renderGlobalStats(tokens) {
       const liquidities = tokens
         .map(t => parseFloat(t.liquidity_usd))
-        .filter(n => !isNaN(n));
+        .filter(n => !isNaN(n) && n > 0);
+
+      document.getElementById('stat-count').textContent = tokens.length;
 
       if (liquidities.length) {
-        const avg = liquidities.reduce((a, b) => a + b, 0) / liquidities.length;
-        const min = Math.min(...liquidities);
-        document.getElementById('stat-avg-liq').textContent =
-          '$' + avg.toLocaleString('en-US', { maximumFractionDigits: 2 });
-        document.getElementById('stat-min-liq').textContent =
-          '$' + min.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        const sum = liquidities.reduce((a, b) => a + b, 0);
+        document.getElementById('stat-avg-liq').textContent = fmtUsdPlain(sum / liquidities.length);
+        document.getElementById('stat-max-liq').textContent = fmtUsdPlain(Math.max(...liquidities));
+        document.getElementById('stat-min-liq').textContent = fmtUsdPlain(Math.min(...liquidities));
       } else {
-        document.getElementById('stat-avg-liq').textContent = '—';
-        document.getElementById('stat-min-liq').textContent = '—';
+        ['stat-avg-liq', 'stat-max-liq', 'stat-min-liq'].forEach(id => {
+          document.getElementById(id).textContent = '—';
+        });
       }
 
-      if (tokens.length > 0 && tokens[0].detected_at) {
-        document.getElementById('stat-last').textContent = fmtDate(tokens[0].detected_at);
-      } else {
-        document.getElementById('stat-last').textContent = '—';
-      }
+      const latest = tokens.find(t => t.detected_at);
+      document.getElementById('stat-last').textContent =
+        latest ? fmtDate(latest.detected_at) : '—';
     }
 
-    function renderTable(tokens) {
-      const tbody = document.getElementById('token-table-body');
+    // ── Tab 1: Tokens ────────────────────────────────────────────────
 
+    function renderTokenTable(tokens) {
+      const tbody = document.getElementById('token-table-body');
       if (!tokens || tokens.length === 0) {
-        tbody.innerHTML =
-          '<tr class="empty-row"><td colspan="6">No abandoned tokens found yet. Scanner is running…</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No abandoned tokens found yet. Scanner is running…</td></tr>';
         return;
       }
-
       tbody.innerHTML = tokens.map((t, i) => `
         <tr>
           <td style="color:#555;font-size:0.78rem">${i + 1}</td>
           <td>${addrLink(t.pair_address)}</td>
           <td>${addrLink(t.token0)}</td>
           <td>${addrLink(t.token1)}</td>
-          <td>${fmtLiquidity(t.liquidity_usd)}</td>
+          <td>${fmtUsd(t.liquidity_usd)}</td>
           <td class="ts">${fmtDate(t.detected_at)}</td>
         </tr>
       `).join('');
     }
 
-    async function refresh() {
-      const tokens = await fetchTokens();
+    // ── Tab 2: Liquidity ─────────────────────────────────────────────
 
-      if (tokens === null) {
-        document.getElementById('last-update').textContent =
-          `⚠ Fetch failed at ${fmtNow()}`;
+    function renderLiquidityTable(rows) {
+      const tbody = document.getElementById('liquidity-table-body');
+      if (!rows || rows.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No liquidity data yet. Updater runs every 5 minutes.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map((r, i) => `
+        <tr>
+          <td style="color:#555;font-size:0.78rem">${i + 1}</td>
+          <td>${addrLink(r.pair_address)}</td>
+          <td>${addrLink(r.token0)}</td>
+          <td>${addrLink(r.token1)}</td>
+          <td>${fmtUsd(r.liquidity_usd)}</td>
+          <td class="ts">${r.last_updated ? fmtDate(r.last_updated) : '<span style="color:#444">Not yet updated</span>'}</td>
+          <td class="ts">${fmtDate(r.detected_at)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // ── Tab 3: Charts ────────────────────────────────────────────────
+
+    const CHART_COLORS = [
+      '#4caf50', '#7eb8f7', '#ffc107', '#f44336',
+      '#ab47bc', '#26c6da', '#ff7043', '#66bb6a',
+    ];
+
+    function buildChartConfig(labels, data, color) {
+      return {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            borderColor: color,
+            backgroundColor: color + '18',
+            borderWidth: 1.5,
+            pointRadius: data.length > 60 ? 0 : 2,
+            pointHoverRadius: 4,
+            fill: true,
+            tension: 0.3,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          animation: false,
+          plugins: { legend: { display: false }, tooltip: {
+            callbacks: {
+              label: ctx => ' $' + ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 2 }),
+            }
+          }},
+          scales: {
+            x: {
+              ticks: { color: '#555', maxTicksLimit: 6, font: { size: 10 } },
+              grid: { color: '#1e1e1e' },
+            },
+            y: {
+              ticks: {
+                color: '#555',
+                font: { size: 10 },
+                callback: v => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
+              },
+              grid: { color: '#1e1e1e' },
+            },
+          },
+        },
+      };
+    }
+
+    async function renderCharts(tokens) {
+
+      const grid = document.getElementById('chart-grid');
+
+      if (!tokens || tokens.length === 0) {
+        grid.innerHTML = '<p style="color:#444;padding:40px 0;">No tokens tracked yet.</p>';
         return;
       }
 
-      renderStats(tokens);
-      renderTable(tokens);
-      document.getElementById('last-update').textContent =
-        `Updated at ${fmtNow()}`;
+      // Fetch history for each pair concurrently (cap at 12 charts)
+      const pairs = tokens.slice(0, 12).map(t => t.pair_address);
+
+      const histories = await Promise.allSettled(
+        pairs.map(p => apiFetch(`/liquidity/${p}?limit=288`).catch(() => []))
+      );
+
+      // Clear old chart instances
+      Object.values(chartInstances).forEach(c => c.destroy());
+      Object.keys(chartInstances).forEach(k => delete chartInstances[k]);
+      grid.innerHTML = '';
+
+      pairs.forEach((pair, idx) => {
+        const result = histories[idx];
+        const history = result.status === 'fulfilled' ? result.value : [];
+
+        const labels = history.map(h => {
+          const d = new Date(h.recorded_at);
+          return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        });
+        const data = history.map(h => parseFloat(h.liquidity_usd) || 0);
+        const color = CHART_COLORS[idx % CHART_COLORS.length];
+
+        const card = document.createElement('div');
+        card.className = 'chart-card';
+
+        const latestLiq = data.length ? data[data.length - 1] : null;
+        const liqStr = latestLiq !== null ? fmtUsdPlain(latestLiq) : '—';
+
+        card.innerHTML = `
+          <div class="chart-title">${shortAddr(pair)}</div>
+          <div class="chart-subtitle">Current: ${liqStr} · ${data.length} data points</div>
+          <canvas id="chart-${idx}"></canvas>
+        `;
+        grid.appendChild(card);
+
+        if (data.length > 0) {
+          const ctx = document.getElementById(`chart-${idx}`).getContext('2d');
+          chartInstances[pair] = new Chart(ctx, buildChartConfig(labels, data, color));
+        } else {
+          card.querySelector('canvas').insertAdjacentHTML(
+            'afterend',
+            '<p style="color:#444;font-size:0.8rem;padding:20px 0;">No history yet — updater runs every 5 min.</p>'
+          );
+        }
+      });
     }
+
+    // ── Tab 4: History ───────────────────────────────────────────────
+
+    function populatePairSelect(tokens) {
+      const sel = document.getElementById('pair-select');
+      const current = sel.value;
+      // Keep existing options but refresh list
+      while (sel.options.length > 1) sel.remove(1);
+      tokens.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.pair_address;
+        opt.textContent = t.pair_address;
+        sel.appendChild(opt);
+      });
+      if (current) sel.value = current;
+    }
+
+    async function loadPairHistory(pair) {
+      const statsEl   = document.getElementById('pair-stats');
+      const chartCard = document.getElementById('pair-chart-card');
+      const tableWrap = document.getElementById('history-table-wrapper');
+      const emptyMsg  = document.getElementById('history-empty');
+
+      if (!pair) {
+        statsEl.style.display   = 'none';
+        chartCard.style.display = 'none';
+        tableWrap.style.display = 'none';
+        emptyMsg.style.display  = 'block';
+        return;
+      }
+
+      emptyMsg.style.display = 'none';
+
+      // Fetch history + stats in parallel
+      const [history, stats] = await Promise.all([
+        apiFetch(`/liquidity/${pair}?limit=288`).catch(() => []),
+        apiFetch(`/liquidity/stats`).then(all => all.find(s => s.pair_address === pair.toLowerCase())).catch(() => null),
+      ]);
+
+      // Stats cards
+      if (stats) {
+        statsEl.style.display = 'flex';
+        document.getElementById('ps-min').textContent   = fmtUsdPlain(stats.min_liquidity);
+        document.getElementById('ps-max').textContent   = fmtUsdPlain(stats.max_liquidity);
+        document.getElementById('ps-avg').textContent   = fmtUsdPlain(stats.avg_liquidity);
+        document.getElementById('ps-count').textContent = stats.data_points ?? '—';
+        document.getElementById('ps-trend').innerHTML   = trendBadge(stats.trend_pct);
+      } else {
+        statsEl.style.display = 'none';
+      }
+
+      // Chart
+      if (history.length > 0) {
+        chartCard.style.display = 'block';
+        document.getElementById('pair-chart-title').textContent = pair;
+
+        const labels = history.map(h => {
+          const d = new Date(h.recorded_at);
+          return d.toLocaleString('en-US', {
+            month: 'short', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', hour12: false,
+          });
+        });
+        const data = history.map(h => parseFloat(h.liquidity_usd) || 0);
+
+        if (pairChartInstance) { pairChartInstance.destroy(); pairChartInstance = null; }
+        const ctx = document.getElementById('pair-chart').getContext('2d');
+        pairChartInstance = new Chart(ctx, buildChartConfig(labels, data, '#4caf50'));
+      } else {
+        chartCard.style.display = 'none';
+      }
+
+      // History table
+      tableWrap.style.display = 'block';
+      const tbody = document.getElementById('history-table-body');
+      if (history.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No history yet for this pair.</td></tr>';
+      } else {
+        // Show newest first in the table
+        const reversed = [...history].reverse();
+        tbody.innerHTML = reversed.map((h, i) => `
+          <tr>
+            <td style="color:#555;font-size:0.78rem">${i + 1}</td>
+            <td>${addrLink(h.pair_address)}</td>
+            <td>${fmtUsd(h.liquidity_usd)}</td>
+            <td class="ts">${fmtDate(h.recorded_at)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // ── Tab switching ────────────────────────────────────────────────
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    document.getElementById('pair-select').addEventListener('change', e => {
+      loadPairHistory(e.target.value);
+    });
+
+    // ── Main refresh ─────────────────────────────────────────────────
+
+    let lastTokens = [];
+
+    async function refresh() {
+      try {
+        // Always fetch tokens (used by stats + tab 1)
+        const tokens = await apiFetch('/tokens');
+        lastTokens = tokens;
+        renderGlobalStats(tokens);
+        renderTokenTable(tokens);
+        populatePairSelect(tokens);
+
+        // Fetch liquidity data for tab 2
+        const liqData = await apiFetch('/liquidity').catch(() => tokens);
+        renderLiquidityTable(liqData);
+
+        // Re-render charts only if Charts tab is active (avoid unnecessary fetches)
+        const chartsActive = document.getElementById('tab-charts').classList.contains('active');
+        if (chartsActive) {
+          await renderCharts(liqData);
+        }
+
+        document.getElementById('last-update').textContent = `Updated at ${fmtNow()}`;
+      } catch (err) {
+        console.error('Refresh error:', err);
+        document.getElementById('last-update').textContent = `⚠ Fetch failed at ${fmtNow()}`;
+      }
+    }
+
+    // Re-render charts when the Charts tab is clicked
+    document.querySelector('[data-tab="tab-charts"]').addEventListener('click', () => {
+      renderCharts(lastTokens);
+    });
 
     // ── Boot ─────────────────────────────────────────────────────────
     refresh();
-    setInterval(refresh, 5000);
+    setInterval(refresh, REFRESH_MS);
   </script>
 </body>
 </html>
