@@ -29,4 +29,4 @@ async def tokens():
 @app.get("/")
 async def root(request: Request):
     tokens = await get_tokens()
-    return templates.TemplateResponse("index.html", {"request": request, "tokens": tokens})
+    return templates.TemplateResponse("index.html", request=request, tokens=tokens)
