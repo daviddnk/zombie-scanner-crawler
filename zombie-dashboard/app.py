@@ -2,10 +2,14 @@ print(">>> DASHBOARD API MODE 1.0 <<<")
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import asyncpg
 import os
 
 app = FastAPI()
+
+if os.path.isdir("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -21,4 +25,4 @@ async def tokens():
 
 @app.get("/")
 async def root():
-    return FileResponse("static/index.html")
+    return FileResponse("templates/index.html")
